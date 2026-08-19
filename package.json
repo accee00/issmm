@@ -1,0 +1,31 @@
+{
+  "name": "issmm",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --hot run index.ts",
+    "check": "bun run typecheck && bun run lint && bun run format:check",
+    "typecheck": "tsc --noEmit",
+    "lint": "bunx --bun prisma validate",
+    "format": "bunx --bun prisma format",
+    "format:check": "bunx --bun prisma format --check",
+    "db:format": "bunx --bun prisma format",
+    "db:validate": "bunx --bun prisma validate",
+    "db:generate": "bunx --bun prisma generate",
+    "db:migrate": "bunx --bun prisma migrate dev",
+    "db:studio": "bunx --bun prisma studio",
+    "db:push": "bunx --bun prisma db push"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "prisma": "^7.9.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.9.1"
+  }
+
+}
