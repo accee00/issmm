@@ -1,1 +1,1 @@
-console.log("Hello via Bun!");
+import { prisma } from "db/client";
