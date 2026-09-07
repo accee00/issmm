@@ -13,11 +13,93 @@ datasource db {
 }
 
 
+/*
+
+Features I want->
+  1. Sign up user as ADMIN or MEMBER.
+  2. A admin only can create orgs.
+  3. A admin can add members to orgs.
+  4. A admin can create boards for his org.
+  5. A user can have only one role in an org.
+  6. A user can be part of multiple orgs.
+  7. A user can be part of multiple boards.
+*/
+
+enum Role{
+  ADMIN
+  MEMBER
+  NEW
+}
+
+
 model User{
-  id         String    @id @default(uuid())
-  name       String
-  email      String    @unique
-  password   String
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id String @id @default(uuid())
+  name String
+  email String @unique
+  password String
+  role Role @default(NEW)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members Membership[]
+  createdIssues    Issue[]         @relation("issues_created")
+  assignedIssues   Issue[]         @relation("issues_assigned")
+}
+
+model Organization{
+  id String @id @default(uuid())
+  name String
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members Membership[]
+  boards Board[]
+}
+
+model Membership{
+  id String @id @default(uuid())
+  userId String
+  orgId String
+  role Role @default(MEMBER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@unique([userId, orgId])
+}
+
+model Board{
+  id String @id @default(uuid())
+  name String  @default("New Board")
+  description String? 
+  orgId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [orgId], references: [id])
+  sections Section[]
+}
+
+model Section{
+  id String @id @default(uuid())
+  name String
+  order Int @default(0)
+  boardId String 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  board Board @relation(fields: [boardId], references: [id])
+  issues Issue[]
+}
+model Issue {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  order       Int      @default(0) 
+  sectionId   String
+  creatorId   String
+  assigneeId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  section     Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  creator     User     @relation("issues_created", fields: [creatorId], references: [id], onDelete: Cascade)
+  assignee    User?    @relation("issues_assigned", fields: [assigneeId], references: [id], onDelete: SetNull)
 }

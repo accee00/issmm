@@ -4,8 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun --watch index.ts",
-    "start": "bun run index.ts",
+    "dev": "bun --watch src/index.ts",
+    "start": "bun run src/index.ts",
     "check-types": "tsc --noEmit"
   },
   "devDependencies": {
@@ -14,10 +14,10 @@
   "peerDependencies": {
     "typescript": "^5"
   },
-
   "dependencies": {
-    "db":"*",
     "@types/express": "^5.0.6",
+    "db": "*",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1"
   }
 }
