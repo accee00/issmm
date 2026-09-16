@@ -17,7 +17,10 @@
   },
   "exports": {
     ".": "./index.ts",
-    "./client": "./index.ts"
+    "./client": "./index.ts",
+    "./generated": "./generated/prisma/client.ts",
+    "./generated/*": "./generated/prisma/*.ts",
+    "./generated/*.ts": "./generated/prisma/*.ts"
   },
   "peerDependencies": {
     "typescript": "^5"
