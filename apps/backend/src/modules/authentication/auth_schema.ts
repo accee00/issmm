@@ -24,5 +24,10 @@ export const signInSchema = z.object({
   password: z.string(),
 });
 
+export const refreshSessionSchema = z.object({
+  refreshToken: z.string(),
+});
+
 export type SignUpSchema = z.infer<typeof signUpSchema>;
 export type SignInSchema = z.infer<typeof signInSchema>;
+export type RefreshSessionSchema = z.infer<typeof refreshSessionSchema>;

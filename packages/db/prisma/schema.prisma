@@ -40,6 +40,7 @@ model User{
   role Role @default(NEW)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  refreshTokens RefreshToken[]
   members Membership[]
   createdIssues    Issue[]         @relation("issues_created")
   assignedIssues   Issue[]         @relation("issues_assigned")
@@ -102,4 +103,16 @@ model Issue {
   section     Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   creator     User     @relation("issues_created", fields: [creatorId], references: [id], onDelete: Cascade)
   assignee    User?    @relation("issues_assigned", fields: [assigneeId], references: [id], onDelete: SetNull)
+}
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }
