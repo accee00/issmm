@@ -5,10 +5,19 @@ import {
   type NextFunction,
   response,
 } from "express";
-import type { RefreshSessionSchema, SignInSchema, SignUpSchema } from "./auth_schema.ts";
+import type {
+  RefreshSessionSchema,
+  SignInSchema,
+  SignUpSchema,
+} from "./auth_schema.ts";
 import { prisma } from "db";
 import { ApiError } from "../../utils/api_exception.ts";
-import { generateTokens } from "../../utils/jwt.ts";
+import {
+  generateTokens,
+  verifyRefreshToken,
+  type AccessTokenPayload,
+  type RefreshTokenPayload,
+} from "../../utils/jwt.ts";
 import { sendResponse } from "../../utils/send_response.ts";
 import { ApiResponse } from "../../utils/api_response.ts";
 import { sha256 } from "../../utils/hash_fn.ts";
@@ -128,5 +137,95 @@ export const signInUserWithEmailAndPassword = asyncHandler(
 );
 export const refreshSession = asyncHandler(
   async (req: Request, res: Response) => {
-  }
+    /// get refresh token
+    const data = req.body as RefreshSessionSchema;
+    let payload: RefreshTokenPayload;
+
+    try {
+      /// check if token is valid or not.
+      payload = verifyRefreshToken(data.refreshToken);
+    } catch (err) {
+      throw ApiError.unauthorized("Invalid refresh token!");
+    }
+
+    const tokenHash = sha256(data.refreshToken);
+    const session = await prisma.refreshToken.findUnique({
+      where: {
+        tokenHash,
+      },
+    });
+
+    if (!session) {
+      throw ApiError.unauthorized("Invalid or expired refresh token.");
+    }
+
+    if (session.revokedAt !== null) {
+      await prisma.refreshToken.deleteMany({
+        where: {
+          userId: session.userId,
+        },
+      });
+
+      throw ApiError.unauthorized(
+        "Refresh token reuse detected. All sessions have been revoked.",
+      );
+    }
+    if (session.expiresAt < new Date()) {
+      await prisma.refreshToken.delete({
+        where: { id: session.id },
+      });
+
+      throw ApiError.unauthorized("Refresh token has expired.");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: {
+        id: payload.id,
+      },
+    });
+
+    if (!user) {
+      await prisma.refreshToken.deleteMany({
+        where: {
+          userId: payload.id,
+        },
+      });
+      throw ApiError.unauthorized("User not found.");
+    }
+
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+      generateTokens(
+        {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
+        { id: user.id },
+      );
+
+    await prisma.$transaction([
+      prisma.refreshToken.update({
+        where: { id: session.id },
+        data: { revokedAt: new Date() },
+      }),
+      prisma.refreshToken.create({
+        data: {
+          tokenHash: sha256(newRefreshToken),
+          userId: user.id,
+          expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
+        },
+      }),
+    ]);
+
+    return sendResponse(
+      res,
+      ApiResponse.ok({
+        data: {
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+        },
+        message: "Tokens refreshed successfully.",
+      }),
+    );
+  },
 );
