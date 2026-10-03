@@ -22,7 +22,7 @@ export const orgParamSchema = orgParamSchame;
 
 export const getAllOrgSchema = z.object({
   membershipStatus: z
-    .enum(["ADMIN", "MEMBER"], { error: "Invalid membership status" })
+    .enum(["OWNER", "ADMIN", "MEMBER"], { error: "Invalid membership status" })
     .optional(),
 });
 
@@ -44,6 +44,10 @@ export const memberParamSchema = z.object({
   userId: z.string({ error: "User ID is required" }),
 });
 
+export const transferOwnershipSchema = z.object({
+  newOwnerUserId: z.string({ error: "New owner user ID is required" }),
+});
+
 export type CreateOrgSchema = z.infer<typeof createOrgSchema>;
 export type UpdataOrgSchema = z.infer<typeof updateOrgSchema>;
 export type OrgParamSchema = z.infer<typeof orgParamSchame>;
@@ -51,4 +55,5 @@ export type GetAllOrgSchema = z.infer<typeof getAllOrgSchema>;
 export type AddMemberSchema = z.infer<typeof addMemberSchema>;
 export type UpdateMemberRoleSchema = z.infer<typeof updateMemberRoleSchema>;
 export type MemberParamSchema = z.infer<typeof memberParamSchema>;
+export type TransferOwnershipSchema = z.infer<typeof transferOwnershipSchema>;
 

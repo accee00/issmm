@@ -10,6 +10,7 @@ import type {
   GetAllOrgSchema,
   MemberParamSchema,
   OrgParamSchema,
+  TransferOwnershipSchema,
   UpdateMemberRoleSchema,
 } from "./organization_schema.ts";
 import { Role } from "db/generated";
@@ -32,7 +33,7 @@ export const createOrganization = asyncHandler(
         data: {
           userId: userId,
           orgId: org.id,
-          role: Role.ADMIN,
+          role: Role.OWNER,
         },
       });
 
@@ -67,10 +68,10 @@ export const updateOrganization = asyncHandler(
     });
 
     if (!membership) {
-      throw ApiError.notFound("Membership not found");
+      throw ApiError.notFound("Organization not found or you are not a member");
     }
 
-    if (membership.role !== Role.ADMIN) {
+    if (membership.role !== Role.OWNER && membership.role !== Role.ADMIN) {
       throw ApiError.forbidden(
         "You are not authorized to update this organization",
       );
@@ -108,7 +109,7 @@ export const getAllOrganization = asyncHandler(
         members: {
           some: {
             userId: userId,
-            ...(membershipStatus && { role: membershipStatus }),
+            ...(membershipStatus && { role: membershipStatus as Role }),
           },
         },
       },
@@ -144,9 +145,9 @@ export const deleteOrganization = asyncHandler(
       throw ApiError.notFound("Organization not found or you are not a member");
     }
 
-    if (membership.role !== Role.ADMIN) {
+    if (membership.role !== Role.OWNER) {
       throw ApiError.forbidden(
-        "You are not authorized to delete this organization",
+        "Only the organization owner can delete this organization",
       );
     }
 
@@ -238,10 +239,17 @@ export const addOrganizationMember = asyncHandler(
       throw ApiError.notFound("Organization not found or you are not a member");
     }
 
-    if (requesterMembership.role !== Role.ADMIN) {
+    if (
+      requesterMembership.role !== Role.OWNER &&
+      requesterMembership.role !== Role.ADMIN
+    ) {
       throw ApiError.forbidden(
         "You are not authorized to add members to this organization",
       );
+    }
+
+    if (requesterMembership.role === Role.ADMIN && role === "ADMIN") {
+      throw ApiError.forbidden("Only the owner can add members with ADMIN role");
     }
 
     const targetUser = await prisma.user.findUnique({
@@ -319,7 +327,10 @@ export const updateMemberRole = asyncHandler(
       throw ApiError.notFound("Organization not found or you are not a member");
     }
 
-    if (requesterMembership.role !== Role.ADMIN) {
+    if (
+      requesterMembership.role !== Role.OWNER &&
+      requesterMembership.role !== Role.ADMIN
+    ) {
       throw ApiError.forbidden(
         "You are not authorized to update member roles in this organization",
       );
@@ -338,20 +349,16 @@ export const updateMemberRole = asyncHandler(
       throw ApiError.notFound("Member not found in this organization");
     }
 
-  
-    if (targetUserId === currentUserId && role !== Role.ADMIN) {
-      const adminCount = await prisma.membership.count({
-        where: {
-          orgId: orgId,
-          role: Role.ADMIN,
-        },
-      });
 
-      if (adminCount <= 1) {
-        throw ApiError.badRequest(
-          "Cannot demote yourself. You are the only admin in this organization.",
-        );
-      }
+    if (targetMembership.role === Role.OWNER) {
+      throw ApiError.forbidden(
+        "Cannot modify the role of the organization owner. Use transfer ownership instead.",
+      );
+    }
+    if (requesterMembership.role === Role.ADMIN) {
+      throw ApiError.forbidden(
+        "Only the organization owner can manage administrator roles",
+      );
     }
 
     const updatedMember = await prisma.membership.update({
@@ -410,7 +417,10 @@ export const removeOrganizationMember = asyncHandler(
       throw ApiError.notFound("Organization not found or you are not a member");
     }
 
-    if (requesterMembership.role !== Role.ADMIN) {
+    if (
+      requesterMembership.role !== Role.OWNER &&
+      requesterMembership.role !== Role.ADMIN
+    ) {
       throw ApiError.forbidden(
         "You are not authorized to remove members from this organization",
       );
@@ -429,19 +439,21 @@ export const removeOrganizationMember = asyncHandler(
       throw ApiError.notFound("Member not found in this organization");
     }
 
-    if (targetUserId === currentUserId) {
-      const adminCount = await prisma.membership.count({
-        where: {
-          orgId: orgId,
-          role: Role.ADMIN,
-        },
-      });
+    if (targetMembership.role === Role.OWNER) {
+      throw ApiError.forbidden(
+        "Cannot remove the organization owner. Transfer ownership or delete the organization.",
+      );
+    }
 
-      if (adminCount <= 1) {
-        throw ApiError.badRequest(
-          "Cannot remove yourself as you are the only admin. Transfer admin role first or delete the organization.",
-        );
-      }
+    if (
+      requesterMembership.role === Role.ADMIN &&
+      targetMembership.role === Role.ADMIN
+    ) {
+      throw ApiError.forbidden("Admins cannot remove other admins. Only the owner can.");
+    }
+
+    if (targetUserId === currentUserId) {
+      throw ApiError.badRequest("Use the leave organization endpoint to leave.");
     }
 
     await prisma.membership.delete({
@@ -485,19 +497,11 @@ export const leaveOrganization = asyncHandler(
       throw ApiError.notFound("You are not a member of this organization");
     }
 
-    if (membership.role === Role.ADMIN) {
-      const adminCount = await prisma.membership.count({
-        where: {
-          orgId: orgId,
-          role: Role.ADMIN,
-        },
-      });
-
-      if (adminCount <= 1) {
-        throw ApiError.badRequest(
-          "You are the only admin in this organization. Promote another member to admin before leaving, or delete the organization.",
-        );
-      }
+   
+    if (membership.role === Role.OWNER) {
+      throw ApiError.badRequest(
+        "The owner cannot leave the organization. Transfer ownership to another member before leaving, or delete the organization.",
+      );
     }
 
     await prisma.membership.delete({
@@ -514,6 +518,78 @@ export const leaveOrganization = asyncHandler(
       ApiResponse.ok({
         data: null,
         message: "You have left the organization successfully",
+      }),
+    );
+  },
+);
+
+export const transferOwnership = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id: orgId } = req.params as OrgParamSchema;
+    const { newOwnerUserId } = req.body as TransferOwnershipSchema;
+    const currentUserId = req.user?.id;
+
+    if (!currentUserId) {
+      throw ApiError.unauthorized("Authentication required");
+    }
+
+    if (currentUserId === newOwnerUserId) {
+      throw ApiError.badRequest("You are already the owner of this organization");
+    }
+
+    const requesterMembership = await prisma.membership.findFirst({
+      where: {
+        userId: currentUserId,
+        orgId: orgId,
+      },
+    });
+
+    if (!requesterMembership || requesterMembership.role !== Role.OWNER) {
+      throw ApiError.forbidden("Only the organization owner can transfer ownership");
+    }
+
+    const targetMembership = await prisma.membership.findFirst({
+      where: {
+        userId: newOwnerUserId,
+        orgId: orgId,
+      },
+    });
+
+    if (!targetMembership) {
+      throw ApiError.notFound("Target user is not a member of this organization");
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.membership.update({
+        where: {
+          userId_orgId: {
+            userId: currentUserId,
+            orgId: orgId,
+          },
+        },
+        data: {
+          role: Role.ADMIN,
+        },
+      });
+
+      await tx.membership.update({
+        where: {
+          userId_orgId: {
+            userId: newOwnerUserId,
+            orgId: orgId,
+          },
+        },
+        data: {
+          role: Role.OWNER,
+        },
+      });
+    });
+
+    return sendResponse(
+      res,
+      ApiResponse.ok({
+        data: null,
+        message: "Organization ownership transferred successfully",
       }),
     );
   },

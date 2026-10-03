@@ -13,6 +13,7 @@ import {
   getOrganizationMembers,
   leaveOrganization,
   removeOrganizationMember,
+  transferOwnership,
   updateMemberRole,
   updateOrganization,
 } from "./organization_controller.ts";
@@ -22,6 +23,7 @@ import {
   getAllOrgSchema,
   memberParamSchema,
   orgParamSchema,
+  transferOwnershipSchema,
   updateMemberRoleSchema,
   updateOrgSchema,
 } from "./organization_schema.ts";
@@ -59,7 +61,12 @@ router.delete(
   removeOrganizationMember,
 );
 
-// Leave Organization
 router.post("/:id/leave", validateParams(orgParamSchema), leaveOrganization);
+router.post(
+  "/:id/transfer-ownership",
+  validateParams(orgParamSchema),
+  validateBody(transferOwnershipSchema),
+  transferOwnership,
+);
 
 export default router;
