@@ -63,8 +63,8 @@ model Membership{
   role Role @default(MEMBER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  user User @relation(fields: [userId], references: [id])
-  organization Organization @relation(fields: [orgId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@unique([userId, orgId])
 }
@@ -76,7 +76,7 @@ model Board{
   orgId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  organization Organization @relation(fields: [orgId], references: [id])
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   sections Section[]
 }
 
@@ -87,7 +87,7 @@ model Section{
   boardId String 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  board Board @relation(fields: [boardId], references: [id])
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
   issues Issue[]
 }
 model Issue {
