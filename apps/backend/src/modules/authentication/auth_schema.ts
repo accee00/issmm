@@ -28,6 +28,11 @@ export const refreshSessionSchema = z.object({
   refreshToken: z.string(),
 });
 
+export const signOutSchema = z.object({
+  refreshToken: z.string().optional(),
+});
+
 export type SignUpSchema = z.infer<typeof signUpSchema>;
 export type SignInSchema = z.infer<typeof signInSchema>;
 export type RefreshSessionSchema = z.infer<typeof refreshSessionSchema>;
+export type SignOutSchema = z.infer<typeof signOutSchema>;

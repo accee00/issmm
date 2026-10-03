@@ -125,6 +125,56 @@ export const getAllOrganization = asyncHandler(
   },
 );
 
+export const getOrganizationById = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id: orgId } = req.params as OrgParamSchema;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw ApiError.unauthorized("Authentication required");
+    }
+
+    const membership = await prisma.membership.findFirst({
+      where: {
+        userId: userId,
+        orgId: orgId,
+      },
+    });
+
+    if (!membership) {
+      throw ApiError.notFound("Organization not found or you are not a member");
+    }
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+      include: {
+        _count: {
+          select: {
+            members: true,
+            boards: true,
+          },
+        },
+      },
+    });
+
+    if (!organization) {
+      throw ApiError.notFound("Organization not found");
+    }
+
+    return sendResponse(
+      res,
+      ApiResponse.ok({
+        data: {
+          ...organization,
+          currentUserRole: membership.role,
+        },
+        message: "Organization fetched successfully",
+      }),
+    );
+  },
+);
+
+
 export const deleteOrganization = asyncHandler(
   async (req: Request, res: Response) => {
     const { id: orgId } = req.params as OrgParamSchema;

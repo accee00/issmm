@@ -8,6 +8,7 @@ import {
 import type {
   RefreshSessionSchema,
   SignInSchema,
+  SignOutSchema,
   SignUpSchema,
 } from "./auth_schema.ts";
 import { prisma } from "db";
@@ -229,3 +230,74 @@ export const refreshSession = asyncHandler(
     );
   },
 );
+
+export const getCurrentUser = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw ApiError.unauthorized("Authentication required");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw ApiError.notFound("User not found");
+    }
+
+    return sendResponse(
+      res,
+      ApiResponse.ok({
+        data: user,
+        message: "User profile fetched successfully",
+      }),
+    );
+  },
+);
+
+export const signOutUser = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  const { refreshToken } = (req.body ?? {}) as SignOutSchema;
+
+  if (refreshToken) {
+    const tokenHash = sha256(refreshToken);
+    await prisma.refreshToken.updateMany({
+      where: {
+        tokenHash: tokenHash,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+  } else if (userId) {
+    await prisma.refreshToken.updateMany({
+      where: {
+        userId: userId,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+  }
+
+  return sendResponse(
+    res,
+    ApiResponse.ok({
+      data: null,
+      message: "Signed out successfully",
+    }),
+  );
+});
+

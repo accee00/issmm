@@ -10,6 +10,7 @@ import {
   createOrganization,
   deleteOrganization,
   getAllOrganization,
+  getOrganizationById,
   getOrganizationMembers,
   leaveOrganization,
   removeOrganizationMember,
@@ -34,6 +35,7 @@ router.use(authMiddleware);
 
 router.post("/", validateBody(createOrgSchema), createOrganization);
 router.get("/", validateQuery(getAllOrgSchema), getAllOrganization);
+router.get("/:id", validateParams(orgParamSchema), getOrganizationById);
 router.patch(
   "/:id",
   validateParams(orgParamSchema),
